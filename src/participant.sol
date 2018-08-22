@@ -1,9 +1,10 @@
 pragma solidity ^0.4.21;
 
 import "./tontine.sol";
+import "./lib.sol";
 
 // Contract for the participant of the tontine
-contract participant {
+contract Participant {
 
     // The owner account (i.e. the creator of the contract)
     address owner;
@@ -46,7 +47,17 @@ contract participant {
     }
 
     function invest() payable {
+        Tontine(tontineAddress).invest();
         // TODO: functionality for investing more money
+    }
+
+    // Tontine has started but there was no money
+    function cull() {
+        require(msg.sender == tontineAddress);
+
+        emit Culled();
+
+        selfdestruct(owner);
     }
 
     // The tontine has begun - lock the funds
@@ -71,7 +82,7 @@ contract participant {
     }
 
     // The running tontine has instructed this contract to suicide due to inactivity and a failure to claim the share
-    function kill() external {
+    function devolve() external {
         require(msg.sender == runningTontineAddress);
 
         // emit event
@@ -83,4 +94,5 @@ contract participant {
     // Events
     event ReadyToCollect(uint _ts, uint _expiry);
     event Devolved(uint _amount, uint _ts);
+    event Culled();
 }

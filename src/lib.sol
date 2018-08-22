@@ -1,7 +1,11 @@
 pragma solidity ^0.4.21;
 
 // Common structs used across contracts
-library TontineStructs {
+library TontineLib {
+
+    // Fixed point multiplication constant
+    uint256 constant FIXED_POINT_CONSTANT = 1000000000000000000;
+    function getFixedPointConstant() public pure returns (uint256) { return FIXED_POINT_CONSTANT; }
 
     // Agreed on initial values of the tontine
     struct DeviceParameters {
@@ -11,15 +15,5 @@ library TontineStructs {
         uint dividendPercent;
         // The address of the investment target to be agreed upon
         address investmentTarget;
-    }
-
-    // A participant in the tontine
-    struct Participant {
-        // The address of the participant
-        address addr;
-        // The total amount of money invested in the tontine
-        uint invested;
-        // boolean flag to determine if they exist in a map
-        bool exists;
     }
 }

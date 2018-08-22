@@ -27,8 +27,8 @@ contract RunningTontine {
 
     // TODO: maintain a list of valid identity tokens
 
-    // List of all the current participants in the tontine
-    mapping ( address => TontineStructs.Participant ) participants;
+    // Mapping of the share of all current participants in the tontine
+    mapping ( address => uint256 ) participantShare;
 
     constructor(address _investmentTarget) public {
         launchTs = now;
@@ -57,10 +57,14 @@ contract RunningTontine {
         // TODO: notify all participants
     }
 
+    function addShare(address participant, uint256 share) external {
+        participantShare[participant] = share;
+    }
+
     // Retrieve funds
     function retrieve(bytes32 identityToken) external payable {
         require(state == State.PAYING_OUT);
-        require(participants[msg.sender].exists);
+        require(participantShare[msg.sender] > 0);
 
         // TODO: validate our identity token
 
@@ -68,7 +72,7 @@ contract RunningTontine {
     }
 
     // Remove a participant from the tontine and devolve their share to surviving participants
-    function devolve(TontineStructs.Participant participant) internal {
+    function devolve(address participant) internal {
         // TODO: emit event
         // TODO: remove a participant and divide their shares between remaining participants
         // TODO: if there is only one participant left, wrap up this contract
