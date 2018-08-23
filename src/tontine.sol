@@ -84,8 +84,8 @@ contract Tontine {
 
                 // Inform the participant that their share has been locked, and the address of the running tontine
                 Participant(participants[i]).lock(address(runningTontine));
-                // Add the participant's share to the running tontine
-                runningTontine.addShare(participants[i], share);
+                // Add the participant and their share to the running tontine
+                runningTontine.addParticipant(participants[i], share);
             } else {
                 // Participant is no longer needed and can be killed
                 Participant(participants[i]).cull();

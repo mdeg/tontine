@@ -1,6 +1,7 @@
 pragma solidity ^0.4.21;
 
 import "./lib.sol";
+import "./participant.sol";
 
 contract RunningTontine {
 
@@ -16,36 +17,52 @@ contract RunningTontine {
     // Initially, the tontine is in the investment phase
     State state = State.INVESTING;
 
+    // The address of the initial tontine contract
+    address initialTontineAddress;
+
     // The address of the contract where the money is invested
     address investmentTarget;
+
     // The timestamp we used on launch
     uint launchTs;
+
     // The interval until the next payout in seconds
     uint payoutIntervalInSeconds;
+
     // The period of time participants have to collect their money
     uint payoutPeriod;
 
-    // TODO: maintain a list of valid identity tokens
-
     // Mapping of the share of all current participants in the tontine
+    // A non-zero value here implies that a participant is still in the tontine
     mapping ( address => uint256 ) participantShare;
+
+    // Iterable list of addresses of all participants
+    address[] public participants;
+
+    // Participant count to allow traversal
+    uint numParticipants = 0;
+
+    // Addresses that have been verified and their identity tokens
+    mapping ( address => bytes32 ) verifiedIdentities;
 
     constructor(address _investmentTarget) public {
         launchTs = now;
         investmentTarget = _investmentTarget;
 
-        // TODO: transfer sum to investment target
-
         payoutIntervalInSeconds = launchTs + ONE_YEAR_IN_SECONDS;
+
+        // Seed the investment target with our initial investment
+        investmentTarget.transfer(address(this).balance);
     }
 
-    // TODO: work out how to time this
-    function endPayoutPeriod() {
+    // TODO: work out how to timer this
+    function endPayoutPeriod() public {
         require(state == State.PAYING_OUT);
 
         // TODO: expire participants who have not collected
 
-        // TODO: return expired dividends to investment pool
+        // Return any uncollected dividends to the investment pool
+        investmentTarget.transfer(address(this).balance);
 
         state = State.INVESTING;
     }
@@ -54,26 +71,46 @@ contract RunningTontine {
     function receiveReturnOnInvestment() external payable {
         require(msg.sender == investmentTarget);
         state = State.PAYING_OUT;
-        // TODO: notify all participants
+
+        uint expiry = now + payoutPeriod;
+
+        // Notify all surviving participants that their funds are ready to collect
+        for (uint i = 0; i < numParticipants; i++) {
+            if (participantShare[participants[i]] != 0) {
+                Participant(participants[i]).notify(expiry);
+            }
+        }
     }
 
-    function addShare(address participant, uint256 share) external {
+    // Add a new participant to the running tontine
+    function addParticipant(address participant, uint256 share) external {
+        require(msg.sender == initialTontineAddress);
+
         participantShare[participant] = share;
+        participants.push(participant);
+        numParticipants++;
     }
 
-    // Retrieve funds
+    // Called by a participant attempting to retrieve funds from this running tontine
     function retrieve(bytes32 identityToken) external payable {
         require(state == State.PAYING_OUT);
         require(participantShare[msg.sender] > 0);
 
-        // TODO: validate our identity token
+        // Verify that we have an identity token and it matches
+        require(identityToken == verifiedIdentities[msg.sender]);
 
-        // TODO: return calculated dividend to participant
+        // Return the users' calculated dividend
+        msg.sender.transfer(address(this).balance / participantShare[msg.sender]);
     }
 
     // Remove a participant from the tontine and devolve their share to surviving participants
     function devolve(address participant) internal {
-        // TODO: emit event
+
+        emit Devolve(participant);
+
+        uint256 share = participantShare[participant];
+
+        participantShare[participant] = 0;
         // TODO: remove a participant and divide their shares between remaining participants
         // TODO: if there is only one participant left, wrap up this contract
     }
@@ -81,10 +118,13 @@ contract RunningTontine {
     // The running tontine has devolved to the final participant
     // Wrap up the tontine and return all our funds to the originator
     function wrapUp(address _survivor) internal {
-        // TODO: emit event
+        emit WrapUp(_survivor, now);
 
         // TODO: kill investment target
         // TODO: ensure investment has returned all funds
         selfdestruct(_survivor);
     }
+
+    event Devolve(address);
+    event WrapUp(address survivor, uint ts);
 }

@@ -6,31 +6,26 @@ import "./lib.sol";
 // Contract for the participant of the tontine
 contract Participant {
 
-    // The owner account (i.e. the creator of the contract)
+    // The owner account (i.e. the address that manages this participant)
     address owner;
+
     // The address of the initial tontine that is receiving investment
     address tontineAddress;
 
     // The address of the running tontine that the funds have been invested in
-    // This is received from the tontineAddress once it starts
     address runningTontineAddress;
 
     // Kick off the contract - requires a deployed tontine!
-    // TODO: what if the tontine does not exist?
     constructor(address _tontineAddress) public {
         owner = msg.sender;
 
         tontineAddress = _tontineAddress;
-
-        // TODO: send money to tontine to invest
     }
 
     // This contract has been notified that funds are available to collect
     // These funds must be collected before the expiry or the owner will be considered 'dead'
     function notify(uint expiry) external {
         require(msg.sender == runningTontineAddress);
-
-        // TODO: how to notify owner?
 
         emit ReadyToCollect(now, expiry);
     }
@@ -43,16 +38,21 @@ contract Participant {
 
         RunningTontine(runningTontineAddress).retrieve(identityToken);
 
-        // TODO: error handling
+        msg.sender.transfer(address(this).balance);
     }
 
-    function invest() payable {
+    // Invest some money into the tontine contract. Only valid before the tontine has started.
+    function invest() external payable {
+        require(tontineAddress == 0);
+        require(runningTontineAddress != 0);
+
         Tontine(tontineAddress).invest();
-        // TODO: functionality for investing more money
+        tontineAddress.transfer(address(this).balance);
     }
 
-    // Tontine has started but there was no money
-    function cull() {
+    // The tontine has started but no money was invested into it by this participant, so it has been culled
+    // Suicide and return anything sitting in this contract back to the originator
+    function cull() external {
         require(msg.sender == tontineAddress);
 
         emit Culled();
@@ -60,39 +60,41 @@ contract Participant {
         selfdestruct(owner);
     }
 
-    // The tontine has begun - lock the funds
+    // The tontine has begun - lock up the funds funds
     function lock(address _runAddress) external {
         require(msg.sender == tontineAddress);
 
         runningTontineAddress = _runAddress;
         tontineAddress = 0;
+
+        emit Locked(now);
     }
 
     // Cancel an investment in the tontine
-    // Only valid if the tontine has not started - the funds are locked once that begins
     function cancel() external {
         require(msg.sender == owner);
         require(tontineAddress != 0);
 
         Tontine(tontineAddress).cancelInvestment();
 
-        // TODO: test that the funds are returned to this contract
+        emit Cancelled();
 
         selfdestruct(owner);
     }
 
-    // The running tontine has instructed this contract to suicide due to inactivity and a failure to claim the share
+    // The share has been devolved due to an inability to collect the share
     function devolve() external {
         require(msg.sender == runningTontineAddress);
 
-        // emit event
         emit Devolved(address(this).balance, now);
 
-        selfdestruct(runningTontineAddress);
+        selfdestruct(owner);
     }
 
     // Events
-    event ReadyToCollect(uint _ts, uint _expiry);
-    event Devolved(uint _amount, uint _ts);
+    event Locked(uint ts);
+    event ReadyToCollect(uint ts, uint expiry);
+    event Devolved(uint amount, uint ts);
     event Culled();
+    event Cancelled();
 }
